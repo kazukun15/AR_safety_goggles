@@ -1,9 +1,10 @@
-name: Build SafeAR V18 All-in-One
+name: Build SafeAR V18
 
 on:
-  workflow_dispatch: # 手動実行ボタンを表示
+  workflow_dispatch:
   push:
-    branches: [ "main" ] # コード更新時も実行
+    branches:
+      - main
 
 jobs:
   build:
@@ -22,18 +23,15 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # ========================================================
-      # 1. ソースコードをこの場で生成する (Generate Source Code)
-      # ========================================================
       - name: Generate Project Files
         shell: bash
         run: |
-          # ディレクトリ作成
+          # Create Directories
           mkdir -p app/src/main/java/jp/kamijima/safear/v18
           mkdir -p app/src/main/res/layout
-          mkdir -p gradle/wrapper
-
-          # --- settings.gradle ---
+          mkdir -p app/src/main/res/values
+          
+          # settings.gradle
           cat <<'EOF' > settings.gradle
           pluginManagement {
               repositories {
@@ -53,14 +51,14 @@ jobs:
           include ':app'
           EOF
 
-          # --- build.gradle (Project) ---
+          # build.gradle (Project)
           cat <<'EOF' > build.gradle
           plugins {
               id 'com.android.application' version '8.3.2' apply false
           }
           EOF
 
-          # --- app/build.gradle (Module) ---
+          # app/build.gradle (Module)
           cat <<'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -75,17 +73,11 @@ jobs:
                   versionCode 1
                   versionName "18.0"
               }
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-                  }
-              }
+              buildFeatures { viewBinding true }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
-              buildFeatures { viewBinding true }
           }
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -98,14 +90,13 @@ jobs:
           }
           EOF
 
-          # --- AndroidManifest.xml ---
+          # AndroidManifest.xml
           cat <<'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.CAMERA" />
               <uses-permission android:name="android.permission.INTERNET" />
               <application
-                  android:allowBackup="true"
                   android:label="SafeAR Hyper"
                   android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity
@@ -121,14 +112,13 @@ jobs:
           </manifest>
           EOF
 
-          # --- activity_main.xml (Layout) ---
+          # activity_main.xml
           cat <<'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:background="#000000"
-              android:fitsSystemWindows="true">
+              android:background="#000000">
               <androidx.camera.view.PreviewView 
                   android:id="@+id/previewView" 
                   android:layout_width="match_parent" 
@@ -145,10 +135,9 @@ jobs:
                   android:gravity="center_vertical"
                   android:paddingHorizontal="20dp">
                   <TextView
-                      android:text="SafeAR: HYPER SENSE"
+                      android:text="SafeAR: HYPER"
                       android:textColor="#00FFCC"
-                      android:typeface="monospace"
-                      android:textSize="14sp"
+                      android:textSize="18sp"
                       android:textStyle="bold"
                       android:layout_weight="1"
                       android:layout_width="0dp"
@@ -158,14 +147,12 @@ jobs:
                       android:text="LIGHT "
                       android:textColor="#FFFFFF"
                       android:layout_width="wrap_content"
-                      android:layout_height="wrap_content"
-                      android:thumbTint="#00FFCC"
-                      android:trackTint="#5500FFCC"/>
+                      android:layout_height="wrap_content"/>
               </LinearLayout>
           </FrameLayout>
           EOF
 
-          # --- OverlayView.java (HUD Logic) ---
+          # OverlayView.java
           cat <<'EOF' > app/src/main/java/jp/kamijima/safear/v18/OverlayView.java
           package jp.kamijima.safear.v18;
           import android.content.Context;
@@ -184,12 +171,11 @@ jobs:
               private final Paint pFill = new Paint();
               private final Paint pText = new Paint();
               private List<Tracked> items = new ArrayList<>();
-              
               public OverlayView(Context c, AttributeSet a) {
                   super(c, a);
-                  pStroke.setStyle(Paint.Style.STROKE); pStroke.setStrokeWidth(6f); pStroke.setAntiAlias(true);
-                  pFill.setStyle(Paint.Style.FILL); pFill.setAntiAlias(true);
-                  pText.setColor(Color.WHITE); pText.setTextSize(40f); pText.setTypeface(Typeface.DEFAULT_BOLD);
+                  pStroke.setStyle(Paint.Style.STROKE); pStroke.setStrokeWidth(6f);
+                  pFill.setStyle(Paint.Style.FILL);
+                  pText.setColor(Color.WHITE); pText.setTextSize(40f);
               }
               public void setItems(List<Tracked> list) { this.items = list; postInvalidate(); }
               @Override protected void onDraw(Canvas c) {
@@ -197,20 +183,19 @@ jobs:
                   if (items == null) return;
                   for (Tracked t : items) {
                       if (t.box == null) continue;
-                      pFill.setColor(t.color); pFill.setAlpha(50); c.drawRect(t.box, pFill);
+                      pFill.setColor(t.color); pFill.setAlpha(60); c.drawRect(t.box, pFill);
                       pStroke.setColor(t.color); c.drawRect(t.box, pStroke);
                       pText.setColor(Color.WHITE); c.drawText(t.label, t.box.left, t.box.top - 10, pText);
                       if(t.isApproaching) {
-                          pText.setColor(Color.RED); pText.setTextSize(60f);
-                          c.drawText("⚠️ CAUTION", t.box.centerX() - 120, t.box.centerY(), pText);
-                          pText.setTextSize(40f);
+                          pText.setColor(Color.RED); 
+                          c.drawText("CAUTION", t.box.centerX(), t.box.centerY(), pText);
                       }
                   }
               }
           }
           EOF
 
-          # --- MainActivity.java (App Logic) ---
+          # MainActivity.java
           cat <<'EOF' > app/src/main/java/jp/kamijima/safear/v18/MainActivity.java
           package jp.kamijima.safear.v18;
           import android.Manifest;
@@ -231,7 +216,6 @@ jobs:
           import com.google.mlkit.vision.objects.*;
           import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions;
           import java.util.*;
-
           public class MainActivity extends AppCompatActivity implements TextToSpeech.OnInitListener {
               private PreviewView previewView;
               private OverlayView overlay;
@@ -239,7 +223,6 @@ jobs:
               private Camera camera;
               private TextToSpeech tts;
               private long lastSpeakTime = 0;
-
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState); setContentView(R.layout.activity_main);
                   previewView = findViewById(R.id.previewView); overlay = findViewById(R.id.overlay); swTorch = findViewById(R.id.swTorch);
@@ -250,7 +233,6 @@ jobs:
               }
               @Override public void onInit(int s) { if(s==TextToSpeech.SUCCESS) tts.setLanguage(Locale.JAPAN); }
               @Override public void onRequestPermissionsResult(int rc, String[] p, int[] r) { super.onRequestPermissionsResult(rc,p,r); if(r.length>0 && r[0]==PackageManager.PERMISSION_GRANTED) startCamera(); }
-              
               private void startCamera() {
                   ListenableFuture<ProcessCameraProvider> f = ProcessCameraProvider.getInstance(this);
                   f.addListener(() -> {
@@ -269,7 +251,6 @@ jobs:
                       } catch(Exception e) {}
                   }, ContextCompat.getMainExecutor(this));
               }
-              
               private void draw(List<DetectedObject> objects, ImageProxy proxy) {
                   try {
                       int w=overlay.getWidth(); int h=overlay.getHeight(); if(w==0) return;
@@ -302,9 +283,6 @@ jobs:
           }
           EOF
 
-      # ========================================================
-      # 2. ビルドツール (Gradle) を直接インストール
-      # ========================================================
       - name: Install Gradle 8.7
         shell: bash
         run: |
@@ -312,9 +290,6 @@ jobs:
           unzip -q gradle-8.7-bin.zip
           echo "$PWD/gradle-8.7/bin" >> $GITHUB_PATH
 
-      # ========================================================
-      # 3. ビルド実行 & アップロード
-      # ========================================================
       - name: Build APK
         shell: bash
         run: gradle assembleDebug --no-daemon
