@@ -1,4 +1,4 @@
-name: Build SafeAR V18 Lite
+name: Build SafeAR V18 Ultra Lite
 
 on:
   workflow_dispatch:
@@ -37,9 +37,13 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p gradle/wrapper
 
-          # --- gradle.properties (★修正: メモリを3GBに調整して安定化) ---
+          # --- gradle.properties (★ここが重要：超省メモリ設定) ---
           cat <<'EOF' > gradle.properties
-          org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC
+          # メモリを2GBに制限し、並列処理を禁止して安定させる
+          org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+          org.gradle.parallel=false
+          org.gradle.daemon=false
+          org.gradle.configureondemand=false
           android.useAndroidX=true
           android.enableJetifier=true
           android.nonTransitiveRClass=true
@@ -99,7 +103,7 @@ jobs:
               }
               buildFeatures { viewBinding true }
               
-              // Lintを無効化してメモリ節約
+              // Lintを無効化
               lint {
                   abortOnError false
                   checkReleaseBuilds false
@@ -326,11 +330,11 @@ jobs:
           echo "$PWD/gradle-8.7/bin" >> $GITHUB_PATH
 
       # ========================================================
-      # 3. ビルド実行 (★Lintをスキップするオプション追加)
+      # 3. ビルド実行
       # ========================================================
       - name: Build APK
         shell: bash
-        # -x lint でLintタスクをスキップし、メモリ消費を抑える
+        # メモリを食うLintタスクを完全にスキップ
         run: gradle assembleDebug -x lint --no-daemon --stacktrace
 
       - name: Upload APK
